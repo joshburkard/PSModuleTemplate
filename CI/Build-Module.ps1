@@ -1,6 +1,6 @@
 # Semantic Versioning: https://semver.org/
 
-Write-Host "[BUILD] [START] Launching Build Process" -ForegroundColor Green	
+Write-Host "[BUILD] [START] Launching Build Process" -ForegroundColor Green
 
 #region prepare folders
 $Current          = (Split-Path -Path $MyInvocation.MyCommand.Path)
@@ -45,12 +45,16 @@ else{
 if(Test-Path -Path $TestsFailures){
     $file      = Get-Item -Path $TestsFailures
     $timestamp = Get-Date ($file.LastWriteTime) -f 'yyyyMMdd_HHmmss'
-    $newname   = $($file.Name -replace '.json',"-$($timestamp).json") 
+    $newname   = $($file.Name -replace '.json',"-$($timestamp).json")
     Rename-Item -Path $TestsFailures -NewName $newname
 }
 Write-Host "[BUILD] [TEST]  Running Function-Tests" -ForegroundColor Green
+if((Get-Module -Name Pester).Version -match '^3\.\d{1}\.\d{1}'){
+    Remove-Module -Name Pester
+}
+Import-Module -Name Pester -MinimumVersion 4.4.1 -Force
 $TestsResult      = Invoke-Pester -Script $TestsScript -PassThru -Show None
-if($TestsResult.FailedCount -eq 0){    
+if($TestsResult.FailedCount -eq 0){
     $ModuleFolderPath = Join-Path -Path $Root -ChildPath $ModuleName
     #$ModuleFolderPath = $Root
     $CodeSourcePath   = Join-Path -Path $Root -ChildPath "Code"
@@ -105,11 +109,6 @@ if($TestsResult.FailedCount -eq 0){
     #endregion
 
     #region General Module-Tests
-    if((Get-Module -Name Pester).Version -match '^3\.\d{1}\.\d{1}'){
-        Remove-Module -Name Pester
-        Import-Module -Name Pester -MinimumVersion 4.4.1
-    }
-
     Describe 'General module control' -Tags 'FunctionalQuality'   {
 
         It "Import $ModuleName without errors" {
@@ -125,8 +124,8 @@ if($TestsResult.FailedCount -eq 0){
         $FunctionsToExport | ForEach-Object {
             $functionname = $_
             It "Get-Command -Module $ModuleName should include Function $($functionname)" {
-                Get-Command -Module $ModuleName | ForEach-Object { 
-                    {if($functionname -match $_.Name){$true}} | should -betrue   
+                Get-Command -Module $ModuleName | ForEach-Object {
+                    {if($functionname -match $_.Name){$true}} | should -betrue
                 }
             }
         }
@@ -138,12 +137,12 @@ if($TestsResult.FailedCount -eq 0){
 
     }
     #endregion
-    Write-Host "[BUILD] [END]   Launching Build Process" -ForegroundColor Green	
+    Write-Host "[BUILD] [END]   Launching Build Process" -ForegroundColor Green
 
     #region build Help files
-    Write-Host "[BUILD] [START] Launching build Help files" -ForegroundColor Green	
+    Write-Host "[BUILD] [START] Launching build Help files" -ForegroundColor Green
 
-    Import-Module -Name $Manifest
+    Import-Module -Name $Manifest -Force
     $Functions = Get-Command -Module $ModuleName -CommandType Function
 
     if ( -not ( Test-Path -Path $HelpPath ) ) {
@@ -153,12 +152,12 @@ if($TestsResult.FailedCount -eq 0){
     $FunctionName = @( $Functions )[0].Name
     foreach ( $FunctionName in @( $Functions | Sort-Object Name | Select-Object -ExpandProperty Name ) ) {
         # $Help = Get-Help $FunctionName -Full -Path $FunctionName
-        $Help = Get-Help  $FunctionName 
+        $Help = Get-Help  $FunctionName
         $Function = Get-Command $FunctionName
-        
+
         $Ast = $Function.ScriptBlock.Ast
         $Examples = @( $Ast.GetHelpContent().EXAMPLES )
-    
+
         #region create file content
             #region function name, SYNOPSIS
                 $FileContent = @"
@@ -171,7 +170,7 @@ $( $Help.Synopsis )
 
 "@
             #endregion function name, SYNOPSIS
-    
+
             #region SYNTAX
                 $FileContent += @"
 ## SYNTAX
@@ -183,7 +182,7 @@ $( ( ( $Help.syntax | Out-String ) -replace "`r`n", "`r`n`r`n" ).Trim() )
 
 "@
             #endregion SYNTAX
-    
+
             #region DESCRIPTION
                 $FileContent += @"
 ## DESCRIPTION
@@ -193,7 +192,7 @@ $( ( $Help.description | Out-String ).Trim() )
 
 "@
             #endregion DESCRIPTION
-    
+
             #region PARAMETERS
                 $FileContent += @"
 ## PARAMETERS
@@ -219,7 +218,7 @@ Valid Values:
                         ( $Function.Parameters."$( $parameter.name )".Attributes[1].ValidValues ) | foreach {
                             $FileContent += @"
 - $( $_ )
-    
+
 "@
                         }
                     }
@@ -230,7 +229,7 @@ Valid Values:
 "@
                 }
             #endregion PARAMETERS
-    
+
             #region INPUTS
                 if ( $Help.inputTypes.inputType.type.name ) {
                     $FileContent += @"
@@ -242,7 +241,7 @@ $( $Help.inputTypes.inputType.type.name )
 "@
                 }
             #endregion INPUTS
-    
+
             #region OUTPUTS
                 $FileContent += @"
 ## OUTPUTS
@@ -252,7 +251,7 @@ $( @( $Help.returnValues.returnValue )[0].type.name)
 
 "@
             #endregion OUTPUTS
-    
+
             #region NOTES
                 if ( ( $Help.alertSet.alert | Out-String ).Trim() ) {
                     $FileContent += @"
@@ -266,7 +265,7 @@ $( ( $Help.alertSet.alert | Out-String ).Trim() )
 "@
                 }
             #endregion NOTES
-    
+
             #region EXAMPLES
                 $FileContent += @"
 ## EXAMPLES
@@ -288,7 +287,7 @@ $( ( @( $examples )[ $i ] ).ToString().Trim() )
                 foreach ($example in $Help.examples.example) {
                     $FileContent += @"
     ### $(($example.title -replace '-*', '').Trim())
-    
+
 ``````powershell
 $( @( $example.code ) -join "`r`n" )
 ``````
@@ -300,9 +299,9 @@ $( @( $example.code ) -join "`r`n" )
 
             $FileContent = $FileContent -replace "$( [System.Environment]::NewLine )$( [System.Environment]::NewLine )$( [System.Environment]::NewLine )", "$( [System.Environment]::NewLine )$( [System.Environment]::NewLine )"
 
-            
+
         #endregion create file content
-    
+
         #region save file
             $FileName = Join-Path -Path $HelpPath -ChildPath "$( $FunctionName ).md"
             if ( Test-Path -Path $FileName ) {
@@ -311,7 +310,7 @@ $( @( $example.code ) -join "`r`n" )
             $FileContent | Out-File -FilePath $FileName -Force
         #endregion save file
     }
-    Write-Host "[BUILD] [END]   Launching build Help files" -ForegroundColor Green	
+    Write-Host "[BUILD] [END]   Launching build Help files" -ForegroundColor Green
 
 #endregion build Help files
 
@@ -330,5 +329,5 @@ else{
     }
     $TestsArray | ConvertTo-Json | Out-File -FilePath $TestsFailures -Encoding utf8
     Write-Host "[BUILD] [END]   [TEST] Function-Tests, any Errors can be found in $($TestsFailures)" -ForegroundColor Red
-    Write-Host "[BUILD] [END]   Launching Build Process with $($TestsResult.FailedCount) Errors" -ForegroundColor Red	
+    Write-Host "[BUILD] [END]   Launching Build Process with $($TestsResult.FailedCount) Errors" -ForegroundColor Red
 }
