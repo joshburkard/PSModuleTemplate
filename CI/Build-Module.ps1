@@ -1,3 +1,10 @@
+<#
+    this file is from to the PSModuleTemplate from
+
+    https://github.com/tinuwalther/PSModuleTemplate
+
+    for a more accurate version, visit this github repository
+#>
 # Semantic Versioning: https://semver.org/
 
 Write-Host "[BUILD] [START] Launching Build Process" -ForegroundColor Green
@@ -19,6 +26,8 @@ if(Test-Path -Path $Settings){
     $ModuleName        = $ModuleSettings.ModuleName
     $ModuleDescription = $ModuleSettings.ModuleDescription
     $ModuleVersion     = $ModuleSettings.ModuleVersion
+    $prompt            = Read-Host "Enter the Version number of this module in the Semantic Versioning notation [$( $ModuleVersion )]"
+    if (!$prompt -eq "") { $ModuleVersion = $prompt }
     $ModuleAuthor      = $ModuleSettings.ModuleAuthor
     $ModuleCompany     = $ModuleSettings.ModuleCompany
     $ModulePrefix      = $ModuleSettings.ModulePrefix
@@ -30,15 +39,15 @@ else{
     $ModuleAuthor      = Read-Host 'Enter the Author of this module'
     $ModuleCompany     = Read-Host 'Enter the Company or vendor of this module'
     $ModulePrefix      = Read-Host 'Enter the Prefix for all functions of this module'
-    [PSCustomObject] @{
-        ModuleName        = $ModuleName
-        ModuleVersion     = $ModuleVersion
-        ModuleDescription = $ModuleDescription
-        ModuleAuthor      = $ModuleAuthor
-        ModuleCompany     = $ModuleCompany
-        ModulePrefix      = $ModulePrefix
-    } | ConvertTo-Json | Out-File -FilePath $Settings -Encoding utf8
 }
+[PSCustomObject] @{
+    ModuleName        = $ModuleName
+    ModuleVersion     = $ModuleVersion
+    ModuleDescription = $ModuleDescription
+    ModuleAuthor      = $ModuleAuthor
+    ModuleCompany     = $ModuleCompany
+    ModulePrefix      = $ModulePrefix
+} | ConvertTo-Json | Out-File -FilePath $Settings -Encoding utf8
 #endregion
 
 #Running Pester Tests
@@ -49,6 +58,8 @@ if(Test-Path -Path $TestsFailures){
     Rename-Item -Path $TestsFailures -NewName $newname
 }
 Write-Host "[BUILD] [TEST]  Running Function-Tests" -ForegroundColor Green
+
+#region General Module-Tests
 if((Get-Module -Name Pester).Version -match '^3\.\d{1}\.\d{1}'){
     Remove-Module -Name Pester
 }
@@ -103,7 +114,7 @@ if($TestsResult.FailedCount -eq 0){
     Write-Host "[BUILD] [PSD1 ] Adding functions to export" -ForegroundColor Green
     $FunctionsToExport = $PublicFunctions.BaseName
     $Manifest = Join-Path -Path $ModuleFolderPath -ChildPath "$($ModuleName).psd1"
-    Update-ModuleManifest -Path $Manifest -FunctionsToExport $FunctionsToExport
+    Update-ModuleManifest -Path $Manifest -FunctionsToExport $FunctionsToExport -ModuleVersion $ModuleVersion
 
     Write-Host "[BUILD] [END  ] [PSD1] building Manifest" -ForegroundColor Green
     #endregion
