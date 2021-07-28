@@ -76,9 +76,17 @@ Get-ChildItem -Path $CodeSourcePath -Filter "*.ps1" | ForEach-Object {
             }
 
             $DefaultParams = @( 'Verbose', 'Debug', 'ErrorAction', 'WarningAction', 'InformationAction', 'ErrorVariable', 'WarningVariable', 'InformationVariable', 'OutVariable', 'OutBuffer', 'PipelineVariable')
+            # $p = @( $ScriptCommand.Parameters.Keys | Where-Object { $_ -notin $DefaultParams } | Sort-Object )[5]
             foreach ( $p in @( $ScriptCommand.Parameters.Keys | Where-Object { $_ -notin $DefaultParams } | Sort-Object ) ) {
-                It "$ScriptName the Help-text for paramater '$( $p )' should exist" {
-                    ( $p -in $DetailedHelp.parameters.parameter.name ) | Should -Be $true
+                if ( $ScriptCommand.Parameters."$p".IsDynamic ) {
+                    It "$ScriptName the Help-text for paramater ""$( $p )"" should exist" {
+                        [boolean]( $ScriptCommand.Parameters."$p".Attributes.HelpMessage ) | Should -be $true
+                    }
+                }
+                else {
+                    It "$ScriptName the Help-text for paramater ""$( $p )"" should exist" {
+                        ( $p -in $DetailedHelp.parameters.parameter.name ) | Should -Be $true
+                    }
                 }
 
                 $Declaration = ( ( @( $Ast.FindAll( { $true } , $true ) ) | Where-Object { $_.Name.Extent.Text -eq "$('$')$p" } ).Extent.Text -replace 'INT32', 'INT' )
@@ -87,8 +95,10 @@ Get-ChildItem -Path $CodeSourcePath -Filter "*.ps1" | ForEach-Object {
                 $VariableType = $VariableType -replace 'INT32', 'INT'
                 $VariableType = $VariableType -replace 'String\[\]', 'String'
                 $VariableType = $VariableType -replace 'SwitchParameter', 'Switch'
-                It "$ScriptName type '[$( $ScriptCommand.Parameters."$p".ParameterType.Name )]' should be declared for parameter '$( $p )'" {
-                    ( ( $Declaration -match $VariableType ) -or ( $Declaration -match $VariableTypeFull ) ) | Should -Be $true
+                if ( -not $ScriptCommand.Parameters."$p".IsDynamic ) {
+                    It "$ScriptName type '[$( $ScriptCommand.Parameters."$p".ParameterType.Name )]' should be declared for parameter '$( $p )'" {
+                        ( ( $Declaration -match $VariableType ) -or ( $Declaration -match $VariableTypeFull ) ) | Should -Be $true
+                    }
                 }
             }
 
@@ -113,7 +123,7 @@ Get-ChildItem -Path $CodeSourcePath -Filter "*.ps1" | ForEach-Object {
 
         Context "Error-Handling" {
             It "$ScriptName should have a try-catch-block" {
-                (($Ast -match 'try') -and ($Ast -match 'catch') -and ($Ast -match '\$error.Clear()')) | Should -be $true
+                (($Ast -match 'try') -and ($Ast -match 'catch') ) | Should -be $true
             }
         }
     }
